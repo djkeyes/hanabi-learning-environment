@@ -78,4 +78,8 @@ if __name__ == "__main__":
     flag = flag[2:]  # Strip leading --.
     flags[flag] = type(flags[flag])(value)
   runner = Runner(flags)
-  runner.run()
+  rewards = runner.run()
+  print('Max Reward: %.3f' % max(rewards))
+  print('Min Reward: %.3f' % min(rewards))
+  print('Mean Reward: %.3f' % (sum(rewards) / len(rewards)))
+  print('Median Reward: %.3f' % sorted(rewards)[len(rewards) // 2])
