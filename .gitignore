@@ -1,1 +1,4 @@
 *.pyc
+
+# IntelliJ IDEA project files
+.idea/
