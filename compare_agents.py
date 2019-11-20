@@ -14,6 +14,7 @@
 
 from __future__ import print_function
 
+import random
 import os
 import psutil
 
@@ -117,7 +118,8 @@ class Runner(object):
           memory()
           observations = self.environment.reset()
           #agents = [self.agent_class[i](self.agent_config)] + [self.agent_class[j](self.agent_config) for _ in range(num_agents-1)]
-          agents = [agent_instances[i][0]] + agent_instances[j][1:]
+          agents = list([agent_instances[i][0]] + agent_instances[j][1:])
+          random.shuffle(agents)
           for agent in agents:
             agent.reset(self.agent_config)
           done = False
