@@ -30,3 +30,7 @@ class RandomAgent(Agent):
       return random.choice(observation['legal_moves'])
     else:
       return None
+
+  def reset(self, config):
+    # RandomAgent is stateless, nothing to reset
+    pass

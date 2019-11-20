@@ -21,9 +21,7 @@ class SimpleAgent(Agent):
 
   def __init__(self, config, *args, **kwargs):
     """Initialize the agent."""
-    self.config = config
-    # Extract max info tokens or set default to 8.
-    self.max_information_tokens = config.get('information_tokens', 8)
+    self.reset(config)
 
   @staticmethod
   def playable_card(card, fireworks):
@@ -71,3 +69,9 @@ class SimpleAgent(Agent):
           'color': observation['observed_hands'][1][0]['color'],
           'target_offset': 1
       }
+
+  def reset(self, config):
+    # Refresh config, in case it changed
+    self.config = config
+    # Extract max info tokens or set default to 8.
+    self.max_information_tokens = config.get('information_tokens', 8)
