@@ -27,9 +27,9 @@ from __future__ import print_function
 from absl import app
 from absl import flags
 
-from third_party.dopamine import logger
+from agents.rainbow.third_party.dopamine import logger
 
-import run_experiment
+from agents.rainbow import run_experiment
 
 FLAGS = flags.FLAGS
 

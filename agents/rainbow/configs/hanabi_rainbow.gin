@@ -1,6 +1,6 @@
-import dqn_agent
-import rainbow_agent
-import run_experiment
+import agents.rainbow.dqn_agent
+import agents.rainbow.rainbow_agent
+import agents.rainbow.run_experiment
 
 # This configures the DQN Agent.
 AGENT_CLASS = @DQNAgent
