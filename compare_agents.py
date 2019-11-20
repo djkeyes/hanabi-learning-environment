@@ -32,6 +32,7 @@ import getopt
 import rl_env
 from agents.random_agent import RandomAgent
 from agents.simple_agent import SimpleAgent
+from agents.loss_averse_agent import LossAverseAgent
 from agents.rainbow.rainbow_agent import RainbowAgent
 from agents.rainbow.dqn_agent import DQNAgent
 from agents.rainbow.run_experiment import create_agent, create_obs_stacker, format_legal_moves
@@ -91,6 +92,7 @@ class Runner(object):
     self.agent_class = [
         SimpleAgent,
         RandomAgent,
+        LossAverseAgent,
         lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/hanabi_rainbow/checkpoints'),
         lambda config: create_tf_agent(self.environment, 'DQN', 'agents/rainbow/tmp/hanabi_dqn/checkpoints'),
         lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/pretrained/'),
