@@ -332,7 +332,6 @@ def run_one_episode(agent, environment, obs_stacker):
 
   agent.end_episode(reward_since_last_action)
 
-  tf.logging.info('EPISODE: %d %g', step_number, total_reward)
   return step_number, total_reward
 
 
@@ -498,13 +497,7 @@ def run_experiment(agent,
                                    training_steps)
     tf.logging.info('Iteration %d took %d seconds', iteration,
                     time.time() - start_time)
-    start_time = time.time()
     log_experiment(experiment_logger, iteration, statistics,
                    logging_file_prefix, log_every_n)
-    tf.logging.info('Logging iteration %d took %d seconds', iteration,
-                    time.time() - start_time)
-    start_time = time.time()
     checkpoint_experiment(experiment_checkpointer, agent, experiment_logger,
                           iteration, checkpoint_dir, checkpoint_every_n)
-    tf.logging.info('Checkpointing iteration %d took %d seconds', iteration,
-                    time.time() - start_time)
