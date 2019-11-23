@@ -62,7 +62,7 @@ class LearnedAgent(rl_env.Agent):
     self.obs_stacker.reset_stack()
     # need to reset anything else?
 
-def create_tf_agent(environment, type, checkpoint_dir):
+def create_tf_agent(environment, type, checkpoint_dir, checkpoint_version=None):
   # wrap in a new graph, so we don't clash variable names
   g = tf.Graph()
   with g.as_default():
@@ -70,9 +70,10 @@ def create_tf_agent(environment, type, checkpoint_dir):
     obs_stacker.reset_stack()
     agent = create_agent(environment, obs_stacker, type)
     experiment_checkpointer = checkpointer.Checkpointer(checkpoint_dir, 'ckpt')
-    latest_checkpoint_version = checkpointer.get_latest_checkpoint_number(checkpoint_dir)
-    dqn_dictionary = experiment_checkpointer.load_checkpoint(latest_checkpoint_version)
-    agent.unbundle(checkpoint_dir, latest_checkpoint_version, dqn_dictionary)
+    if checkpoint_version is None:
+      checkpoint_version = checkpointer.get_latest_checkpoint_number(checkpoint_dir)
+    dqn_dictionary = experiment_checkpointer.load_checkpoint(checkpoint_version)
+    agent.unbundle(checkpoint_dir, checkpoint_version, dqn_dictionary)
     agent.eval_mode = True
     return LearnedAgent(agent, obs_stacker, environment)
 
