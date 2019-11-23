@@ -117,10 +117,10 @@ class Runner(object):
         j_end = num_agent_classes
       for j in range(j_end):
         print('running agent {} with agent {}'.format(i, j), flush=True)
+        memory()
         
         pair_rewards = []
         for episode in range(flags['num_episodes']):
-          memory()
           observations = self.environment.reset()
           #agents = [self.agent_class[i](self.agent_config)] + [self.agent_class[j](self.agent_config) for _ in range(num_agents-1)]
           agents = list([agent_instances[i][0]] + agent_instances[j][1:])
