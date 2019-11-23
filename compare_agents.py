@@ -139,6 +139,8 @@ class Runner(object):
               observations, reward, done, unused_info = self.environment.step(
                   current_player_action)
               episode_reward += reward
+              if done:
+                break
           pair_rewards.append(episode_reward)
         rewards[i][j] = pair_rewards
         if num_agents == 2:
