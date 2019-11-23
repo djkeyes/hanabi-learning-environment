@@ -136,8 +136,6 @@ class Runner(object):
               else:
                 assert action is None
               # Make an environment step.
-              if type(action) == int:
-                action = observations['player_observations'][agent_id]['legal_moves'][observations['player_observations'][agent_id]['legal_moves_as_int'].index(action)]
               observations, reward, done, unused_info = self.environment.step(
                   current_player_action)
               episode_reward += reward
