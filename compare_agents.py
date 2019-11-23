@@ -37,6 +37,7 @@ from agents.rainbow.rainbow_agent import RainbowAgent
 from agents.rainbow.dqn_agent import DQNAgent
 from agents.rainbow.run_experiment import create_agent, create_obs_stacker, format_legal_moves
 from agents.rainbow.third_party.dopamine import checkpointer
+from agents.heuristic_agent import HeuristicAgent
 
 
 class LearnedAgent(rl_env.Agent):
@@ -96,6 +97,7 @@ class Runner(object):
         lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/hanabi_rainbow/checkpoints'),
         lambda config: create_tf_agent(self.environment, 'DQN', 'agents/rainbow/tmp/hanabi_dqn/checkpoints'),
         lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/pretrained/'),
+        HeuristicAgent,
     ]
 
   def run(self):
