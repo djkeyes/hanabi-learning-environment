@@ -29,10 +29,17 @@ from __future__ import print_function
 
 import time
 
+from agents.rainbow import discriminator_agent
 from .third_party.dopamine import checkpointer
 from .third_party.dopamine import iteration_statistics
 from . import dqn_agent
 import gin.tf
+
+import sys
+
+# FIXME
+sys.path.append('/home/daniel/git/hanabi-learning-environment/')
+
 import rl_env
 import numpy as np
 from . import rainbow_agent
@@ -125,7 +132,7 @@ def create_environment(game_type='Hanabi-Full', num_players=2):
     A Hanabi environment.
   """
   return rl_env.make(
-      environment_name=game_type, num_players=num_players, pyhanabi_path=None)
+    environment_name=game_type, num_players=num_players, pyhanabi_path=None)
 
 
 @gin.configurable
@@ -166,11 +173,18 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
                               num_players=environment.players)
   elif agent_type == 'Rainbow':
     return rainbow_agent.RainbowAgent(
-        observation_size=obs_stacker.observation_size(),
-        num_actions=environment.num_moves(),
-        num_players=environment.players)
+      observation_size=obs_stacker.observation_size(),
+      num_actions=environment.num_moves(),
+      num_players=environment.players)
   else:
     raise ValueError('Expected valid agent_type, got {}'.format(agent_type))
+
+
+@gin.configurable
+def create_discriminator(environment, obs_stacker, create_agent_func):
+  return discriminator_agent.RainbowDiscriminator(create_agent_func,
+                                                  observation_size=obs_stacker.observation_size(),
+                                                  num_actions=environment.num_moves())
 
 
 def initialize_checkpointing(agent, experiment_logger, checkpoint_dir,
@@ -203,24 +217,24 @@ def initialize_checkpointing(agent, experiment_logger, checkpoint_dir,
     experiment_checkpointer: The experiment checkpointer.
   """
   experiment_checkpointer = checkpointer.Checkpointer(
-      checkpoint_dir, checkpoint_file_prefix)
+    checkpoint_dir, checkpoint_file_prefix)
 
   start_iteration = 0
 
   # Check if checkpoint exists. Note that the existence of checkpoint 0 means
   # that we have finished iteration 0 (so we will start from iteration 1).
   latest_checkpoint_version = checkpointer.get_latest_checkpoint_number(
-      checkpoint_dir)
+    checkpoint_dir)
   if latest_checkpoint_version >= 0:
     dqn_dictionary = experiment_checkpointer.load_checkpoint(
-        latest_checkpoint_version)
+      latest_checkpoint_version)
     if agent.unbundle(
         checkpoint_dir, latest_checkpoint_version, dqn_dictionary):
       assert 'logs' in dqn_dictionary
       assert 'current_iteration' in dqn_dictionary
       experiment_logger.data = dqn_dictionary['logs']
       start_iteration = dqn_dictionary['current_iteration'] + 1
-      tf.logging.info('Reloaded checkpoint and will start from iteration %d',
+      tf.compat.v1.logging.info('Reloaded checkpoint and will start from iteration %d',
                       start_iteration)
 
   return start_iteration, experiment_checkpointer
@@ -265,7 +279,7 @@ def parse_observations(observations, num_actions, obs_stacker):
   """
   current_player = observations['current_player']
   current_player_observation = (
-      observations['player_observations'][current_player])
+    observations['player_observations'][current_player])
 
   legal_moves = current_player_observation['legal_moves_as_int']
   legal_moves = format_legal_moves(legal_moves, num_actions)
@@ -292,7 +306,7 @@ def run_one_episode(agent, environment, obs_stacker):
   obs_stacker.reset_stack()
   observations = environment.reset()
   current_player, legal_moves, observation_vector = (
-      parse_observations(observations, environment.num_moves(), obs_stacker))
+    parse_observations(observations, environment.num_moves(), obs_stacker))
   action = agent.begin_episode(current_player, legal_moves, observation_vector)
 
   is_done = False
@@ -316,7 +330,7 @@ def run_one_episode(agent, environment, obs_stacker):
     if is_done:
       break
     current_player, legal_moves, observation_vector = (
-        parse_observations(observations, environment.num_moves(), obs_stacker))
+      parse_observations(observations, environment.num_moves(), obs_stacker))
     if current_player in has_played:
       action = agent.step(reward_since_last_action[current_player],
                           current_player, legal_moves, observation_vector)
@@ -331,6 +345,56 @@ def run_one_episode(agent, environment, obs_stacker):
     reward_since_last_action[current_player] = 0
 
   agent.end_episode(reward_since_last_action)
+
+  return step_number, total_reward
+
+
+def run_one_discriminator_episode(discriminator, environment, obs_stacker):
+  obs_stacker.reset_stack()
+  observations = environment.reset()
+  current_player, legal_moves, observation_vector = (
+    parse_observations(observations, environment.num_moves(), obs_stacker))
+  discriminator.sample_agent_pair()
+  action = discriminator.begin_episode(current_player, legal_moves, observation_vector)
+
+  is_done = False
+  total_reward = 0
+  step_number = 0
+
+  has_played = {current_player}
+
+  # Keep track of per-player reward.
+  reward_since_last_action = np.zeros(environment.players)
+
+  while not is_done:
+    observations, reward, is_done, _ = environment.step(action.item())
+    # print('action selected was {}, reward={}'.format(action, reward))
+
+    modified_reward = max(reward, 0) if LENIENT_SCORE else reward
+    total_reward += modified_reward
+
+    reward_since_last_action += modified_reward
+
+    step_number += 1
+    if is_done:
+      break
+    # print('current player is {}'.format(current_player))
+    current_player, legal_moves, observation_vector = (
+      parse_observations(observations, environment.num_moves(), obs_stacker))
+    if current_player in has_played:
+      action = discriminator.step(reward_since_last_action[current_player],
+                                  current_player, legal_moves, observation_vector)
+    else:
+      # Each player begins the episode on their first turn (which may not be
+      # the first move of the game).
+      action = discriminator.begin_episode(current_player, legal_moves,
+                                           observation_vector)
+      has_played.add(current_player)
+
+    # Reset this player's reward accumulator.
+    reward_since_last_action[current_player] = 0
+
+  discriminator.end_episode(current_player, reward_since_last_action)
 
   return step_number, total_reward
 
@@ -360,8 +424,29 @@ def run_one_phase(agent, environment, obs_stacker, min_steps, statistics,
     episode_length, episode_return = run_one_episode(agent, environment,
                                                      obs_stacker)
     statistics.append({
-        '{}_episode_lengths'.format(run_mode_str): episode_length,
-        '{}_episode_returns'.format(run_mode_str): episode_return
+      '{}_episode_lengths'.format(run_mode_str): episode_length,
+      '{}_episode_returns'.format(run_mode_str): episode_return
+    })
+
+    step_count += episode_length
+    sum_returns += episode_return
+    num_episodes += 1
+
+  return step_count, sum_returns, num_episodes
+
+
+def run_one_discriminator_phase(discriminator, environment, obs_stacker, min_steps, statistics,
+                                run_mode_str):
+  step_count = 0
+  num_episodes = 0
+  sum_returns = 0.
+
+  while step_count < min_steps:
+    episode_length, episode_return = run_one_discriminator_episode(discriminator, environment,
+                                                                   obs_stacker)
+    statistics.append({
+      '{}_episode_lengths'.format(run_mode_str): episode_length,
+      '{}_episode_returns'.format(run_mode_str): episode_return
     })
 
     step_count += episode_length
@@ -400,14 +485,14 @@ def run_one_iteration(agent, environment, obs_stacker,
   # First perform the training phase, during which the agent learns.
   agent.eval_mode = False
   number_steps, sum_returns, num_episodes = (
-      run_one_phase(agent, environment, obs_stacker, training_steps, statistics,
-                    'train'))
+    run_one_phase(agent, environment, obs_stacker, training_steps, statistics,
+                  'train'))
   time_delta = time.time() - start_time
-  tf.logging.info('Average training steps per second: %.2f',
+  tf.compat.v1.logging.info('Average training steps per second: %.2f',
                   number_steps / time_delta)
 
   average_return = sum_returns / num_episodes
-  tf.logging.info('Average per episode return: %.2f', average_return)
+  tf.compat.v1.logging.info('Average per episode return: %.2f', average_return)
   statistics.append({'average_return': average_return})
 
   # Also run an evaluation phase if desired.
@@ -421,15 +506,63 @@ def run_one_iteration(agent, environment, obs_stacker,
     eval_episode_length, eval_episode_return = map(np.mean, zip(*episode_data))
 
     statistics.append({
-        'eval_episode_lengths': eval_episode_length,
-        'eval_episode_returns': eval_episode_return
+      'eval_episode_lengths': eval_episode_length,
+      'eval_episode_returns': eval_episode_return
     })
-    tf.logging.info('Average eval. episode length: %.2f  Return: %.2f',
+    tf.compat.v1.logging.info('Average eval. episode length: %.2f  Return: %.2f',
                     eval_episode_length, eval_episode_return)
   else:
     statistics.append({
-        'eval_episode_lengths': -1,
-        'eval_episode_returns': -1
+      'eval_episode_lengths': -1,
+      'eval_episode_returns': -1
+    })
+
+  return statistics.data_lists
+
+
+@gin.configurable
+def run_one_discriminator_iteration(discriminator, environment, obs_stacker,
+                                    iteration, training_steps,
+                                    evaluate_every_n=100,
+                                    num_evaluation_games=100):
+  start_time = time.time()
+
+  statistics = iteration_statistics.IterationStatistics()
+
+  # First perform the training phase, during which the agent learns.
+  for agent in discriminator.get_agents():
+    agent.eval_mode = False
+  number_steps, sum_returns, num_episodes = (
+    run_one_discriminator_phase(discriminator, environment, obs_stacker, training_steps, statistics,
+                                'train'))
+  time_delta = time.time() - start_time
+  tf.compat.v1.logging.info('Average training steps per second: %.2f',
+                  number_steps / time_delta)
+
+  average_return = sum_returns / num_episodes
+  tf.compat.v1.logging.info('Average per episode return: %.2f', average_return)
+  statistics.append({'average_return': average_return})
+
+  # Also run an evaluation phase if desired.
+  if evaluate_every_n is not None and iteration % evaluate_every_n == 0:
+    episode_data = []
+    agent.eval_mode = True
+    # Collect episode data for all games.
+    for _ in range(num_evaluation_games):
+      episode_data.append(run_one_episode(agent, environment, obs_stacker))
+
+    eval_episode_length, eval_episode_return = map(np.mean, zip(*episode_data))
+
+    statistics.append({
+      'eval_episode_lengths': eval_episode_length,
+      'eval_episode_returns': eval_episode_return
+    })
+    tf.compat.v1.logging.info('Average eval. episode length: %.2f  Return: %.2f',
+                    eval_episode_length, eval_episode_return)
+  else:
+    statistics.append({
+      'eval_episode_lengths': -1,
+      'eval_episode_returns': -1
     })
 
   return statistics.data_lists
@@ -471,6 +604,32 @@ def checkpoint_experiment(experiment_checkpointer, agent, experiment_logger,
       experiment_checkpointer.save_checkpoint(iteration, agent_dictionary)
 
 
+def checkpoint_discriminator_experiment(experiment_checkpointer, discriminator, experiment_logger,
+                                        iteration, checkpoint_dir, checkpoint_every_n):
+  """Checkpoint experiment data.
+
+  Args:
+    experiment_checkpointer: A `Checkpointer` object.
+    agent: An RL agent.
+    experiment_logger: a Logger object, to include its data in the checkpoint.
+    iteration: int, iteration number for checkpointing.
+    checkpoint_dir: str, the directory where to save checkpoints.
+    checkpoint_every_n: int, the frequency for writing checkpoints.
+  """
+  if iteration % checkpoint_every_n == 0:
+    # for agent in discriminator.get_agents():
+    #   agent_dictionary = agent.bundle_and_checkpoint(checkpoint_dir, iteration)
+    #   if agent_dictionary:
+    #     agent_dictionary['current_iteration'] = iteration
+    #     agent_dictionary['logs'] = experiment_logger.data
+    #     experiment_checkpointer.save_checkpoint(iteration, agent_dictionary)
+    net_dictionary = discriminator.bundle_and_checkpoint(checkpoint_dir, iteration)
+    if net_dictionary:
+      net_dictionary['current_iteration'] = iteration
+      net_dictionary['logs'] = experiment_logger.data
+      experiment_checkpointer.save_checkpoint(iteration, net_dictionary)
+
+
 @gin.configurable
 def run_experiment(agent,
                    environment,
@@ -485,9 +644,9 @@ def run_experiment(agent,
                    log_every_n=1,
                    checkpoint_every_n=1):
   """Runs a full experiment, spread over multiple iterations."""
-  tf.logging.info('Beginning training...')
+  tf.compat.v1.logging.info('Beginning training...')
   if num_iterations <= start_iteration:
-    tf.logging.warning('num_iterations (%d) < start_iteration(%d)',
+    tf.compat.v1.logging.warning('num_iterations (%d) < start_iteration(%d)',
                        num_iterations, start_iteration)
     return
 
@@ -495,9 +654,42 @@ def run_experiment(agent,
     start_time = time.time()
     statistics = run_one_iteration(agent, environment, obs_stacker, iteration,
                                    training_steps)
-    tf.logging.info('Iteration %d took %d seconds', iteration,
+    tf.compat.v1.logging.info('Iteration %d took %d seconds', iteration,
                     time.time() - start_time)
     log_experiment(experiment_logger, iteration, statistics,
                    logging_file_prefix, log_every_n)
     checkpoint_experiment(experiment_checkpointer, agent, experiment_logger,
                           iteration, checkpoint_dir, checkpoint_every_n)
+
+
+@gin.configurable
+def run_discriminator_experiment(
+    discriminator,
+    environment,
+    start_iteration,
+    obs_stacker,
+    experiment_logger,
+    experiment_checkpointer,
+    checkpoint_dir,
+    num_iterations=200,
+    training_steps=5000,
+    logging_file_prefix='log',
+    log_every_n=1,
+    checkpoint_every_n=1):
+  """Runs a full experiment, spread over multiple iterations."""
+  tf.compat.v1.logging.info('Beginning discriminator training...')
+  if num_iterations <= start_iteration:
+    tf.compat.v1.logging.warning('num_iterations (%d) < start_iteration(%d)',
+                       num_iterations, start_iteration)
+    return
+
+  for iteration in range(start_iteration, num_iterations):
+    start_time = time.time()
+    statistics = run_one_discriminator_iteration(discriminator, environment, obs_stacker, iteration,
+                                                 training_steps)
+    tf.compat.v1.logging.info('Iteration %d took %d seconds', iteration,
+                    time.time() - start_time)
+    log_experiment(experiment_logger, iteration, statistics,
+                   logging_file_prefix, log_every_n)
+    checkpoint_discriminator_experiment(experiment_checkpointer, discriminator, experiment_logger,
+                                        iteration, checkpoint_dir, checkpoint_every_n)

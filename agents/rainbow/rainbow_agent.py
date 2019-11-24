@@ -138,8 +138,8 @@ class RainbowAgent(dqn_agent.DQNAgent):
         epsilon_decay_period=epsilon_decay_period,
         graph_template=graph_template,
         tf_device=tf_device)
-    tf.logging.info('\t learning_rate: %f', learning_rate)
-    tf.logging.info('\t optimizer_epsilon: %f', optimizer_epsilon)
+    # tf.compat.v1.logging.info('\t learning_rate: %f', learning_rate)
+    # tf.compat.v1.logging.info('\t optimizer_epsilon: %f', optimizer_epsilon)
 
   def _build_replay_memory(self, use_staging):
     """Creates the replay memory used by the agent.
@@ -204,7 +204,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
     # size of next_qt_argmax: 1 x batch_size
     next_qt_argmax = tf.argmax(
         next_qt + self._replay.next_legal_actions, axis=1)[:, None]
-    batch_indices = tf.range(tf.to_int64(batch_size))[:, None]
+    batch_indices = tf.range(tf.cast(batch_size, tf.int64))[:, None]
     # size of next_qt_argmax: batch_size x 2
     next_qt_argmax = tf.concat([batch_indices, next_qt_argmax], axis=1)
     # size of next_probabilities: batch_size x num_atoms
@@ -231,7 +231,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
         labels=target_distribution,
         logits=chosen_action_logits)
 
-    optimizer = tf.train.AdamOptimizer(
+    optimizer = tf.compat.v1.train.AdamOptimizer(
         learning_rate=self.learning_rate,
         epsilon=self.optimizer_epsilon)
 

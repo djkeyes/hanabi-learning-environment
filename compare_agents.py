@@ -95,9 +95,9 @@ class Runner(object):
         SimpleAgent,
         RandomAgent,
         LossAverseAgent,
-        lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/hanabi_rainbow/checkpoints'),
-        lambda config: create_tf_agent(self.environment, 'DQN', 'agents/rainbow/tmp/hanabi_dqn/checkpoints'),
-        lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/pretrained/'),
+        # lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/hanabi_rainbow/checkpoints'),
+        # lambda config: create_tf_agent(self.environment, 'DQN', 'agents/rainbow/tmp/hanabi_dqn/checkpoints'),
+        # lambda config: create_tf_agent(self.environment, 'Rainbow', 'agents/rainbow/tmp/pretrained/'),
         HeuristicAgent,
     ]
 

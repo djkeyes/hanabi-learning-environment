@@ -361,13 +361,13 @@ class OutOfGraphReplayMemory(object):
       iteration_number: int, iteration_number to use as a suffix in naming numpy
         checkpoint files.
     """
-    if not tf.gfile.Exists(checkpoint_dir):
+    if not tf.io.gfile.exists(checkpoint_dir):
       return
     for attr in self.__dict__:
       if not attr.startswith('_'):
         filename = self._generate_filename(checkpoint_dir, attr,
                                            iteration_number)
-        with tf.gfile.Open(filename, 'wb') as f:
+        with tf.io.gfile.GFile(filename, 'wb') as f:
           with gzip.GzipFile(fileobj=f) as outfile:
             # Checkpoint numpy arrays directly with np.save to avoid excessive
             # memory usage. This is particularly important for the observations
@@ -384,7 +384,7 @@ class OutOfGraphReplayMemory(object):
         stale_filename = self._generate_filename(checkpoint_dir, attr,
                                                  stale_iteration_number)
         try:
-          tf.gfile.Remove(stale_filename)
+          tf.io.gfile.remove(stale_filename)
         except tf.errors.NotFoundError:
           pass
 
@@ -405,7 +405,7 @@ class OutOfGraphReplayMemory(object):
       if attr.startswith('_'):
         continue
       filename = self._generate_filename(checkpoint_dir, attr, suffix)
-      if not tf.gfile.Exists(filename):
+      if not tf.io.gfile.exists(filename):
         raise tf.errors.NotFoundError(None, None,
                                       'Missing file: {}'.format(filename))
     # If we've reached this point then we have verified that all expected files
@@ -496,14 +496,14 @@ class WrappedReplayMemory(object):
 
     with tf.name_scope('replay'):
       with tf.name_scope('add_placeholders'):
-        self.add_obs_ph = tf.placeholder(
+        self.add_obs_ph = tf.compat.v1.placeholder(
             tf.uint8, [observation_size], name='add_obs_ph')
-        self.add_action_ph = tf.placeholder(tf.int32, [], name='add_action_ph')
-        self.add_reward_ph = tf.placeholder(
+        self.add_action_ph = tf.compat.v1.placeholder(tf.int32, [], name='add_action_ph')
+        self.add_reward_ph = tf.compat.v1.placeholder(
             tf.float32, [], name='add_reward_ph')
-        self.add_terminal_ph = tf.placeholder(
+        self.add_terminal_ph = tf.compat.v1.placeholder(
             tf.uint8, [], name='add_terminal_ph')
-        self.add_legal_actions_ph = tf.placeholder(
+        self.add_legal_actions_ph = tf.compat.v1.placeholder(
             tf.float32, [num_actions], name='add_legal_actions_ph')
 
       add_transition_ph = [
@@ -512,10 +512,10 @@ class WrappedReplayMemory(object):
       ]
 
       with tf.device('/cpu:*'):
-        self.add_transition_op = tf.py_func(
+        self.add_transition_op = tf.numpy_function(
             self.memory.add, add_transition_ph, [], name='replay_add_py_func')
 
-        self.transition = tf.py_func(
+        self.transition = tf.numpy_function(
             self.memory.sample_transition_batch, [],
             [tf.uint8, tf.int32, tf.float32, tf.uint8, tf.uint8, tf.int32,
              tf.float32],

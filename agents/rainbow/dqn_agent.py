@@ -63,7 +63,7 @@ def dqn_template(state, num_actions, layer_size=512, num_layers=1):
   r"""Builds a DQN Network mapping states to Q-values.
 
   Args:
-    state: A `tf.placeholder` for the RL state.
+    state: A `tf.compat.v1.placeholder` for the RL state.
     num_actions: int, number of actions that the RL agent can take.
     layer_size: int, number of hidden units per layer.
     num_layers: int, Number of hidden layers.
@@ -107,7 +107,7 @@ class DQNAgent(object):
                graph_template=dqn_template,
                tf_device='/cpu:*',
                use_staging=True,
-               optimizer=tf.train.RMSPropOptimizer(
+               optimizer=tf.compat.v1.train.RMSPropOptimizer(
                    learning_rate=.0025,
                    decay=0.95,
                    momentum=0.0,
@@ -139,19 +139,19 @@ class DQNAgent(object):
       optimizer: Optimizer instance used for learning.
     """
 
-    tf.logging.info('Creating %s agent with the following parameters:',
-                    self.__class__.__name__)
-    tf.logging.info('\t gamma: %f', gamma)
-    tf.logging.info('\t update_horizon: %f', update_horizon)
-    tf.logging.info('\t min_replay_history: %d', min_replay_history)
-    tf.logging.info('\t update_period: %d', update_period)
-    tf.logging.info('\t target_update_period: %d', target_update_period)
-    tf.logging.info('\t epsilon_train: %f', epsilon_train)
-    tf.logging.info('\t epsilon_eval: %f', epsilon_eval)
-    tf.logging.info('\t epsilon_decay_period: %d', epsilon_decay_period)
-    tf.logging.info('\t tf_device: %s', tf_device)
-    tf.logging.info('\t use_staging: %s', use_staging)
-    tf.logging.info('\t optimizer: %s', optimizer)
+    # tf.compat.v1.logging.info('Creating %s agent with the following parameters:',
+    #                 self.__class__.__name__)
+    # tf.compat.v1.logging.info('\t gamma: %f', gamma)
+    # tf.compat.v1.logging.info('\t update_horizon: %f', update_horizon)
+    # tf.compat.v1.logging.info('\t min_replay_history: %d', min_replay_history)
+    # tf.compat.v1.logging.info('\t update_period: %d', update_period)
+    # tf.compat.v1.logging.info('\t target_update_period: %d', target_update_period)
+    # tf.compat.v1.logging.info('\t epsilon_train: %f', epsilon_train)
+    # tf.compat.v1.logging.info('\t epsilon_eval: %f', epsilon_eval)
+    # tf.compat.v1.logging.info('\t epsilon_decay_period: %d', epsilon_decay_period)
+    # tf.compat.v1.logging.info('\t tf_device: %s', tf_device)
+    # tf.compat.v1.logging.info('\t use_staging: %s', use_staging)
+    # tf.compat.v1.logging.info('\t optimizer: %s', optimizer)
 
     # Global variables.
     self.num_actions = num_actions
@@ -176,14 +176,14 @@ class DQNAgent(object):
       # Calling online_convnet will generate a new graph as defined in
       # graph_template using whatever input is passed, but will always share
       # the same weights.
-      online_convnet = tf.make_template('Online', graph_template)
-      target_convnet = tf.make_template('Target', graph_template)
+      online_convnet = tf.compat.v1.make_template('Online', graph_template)
+      target_convnet = tf.compat.v1.make_template('Target', graph_template)
       # The state of the agent. The last axis is the number of past observations
       # that make up the state.
       states_shape = (1, observation_size, stack_size)
       self.state = np.zeros(states_shape)
-      self.state_ph = tf.placeholder(tf.uint8, states_shape, name='state_ph')
-      self.legal_actions_ph = tf.placeholder(tf.float32,
+      self.state_ph = tf.compat.v1.placeholder(tf.uint8, states_shape, name='state_ph')
+      self.legal_actions_ph = tf.compat.v1.placeholder(tf.float32,
                                              [self.num_actions],
                                              name='legal_actions_ph')
       self._q = online_convnet(
@@ -198,12 +198,12 @@ class DQNAgent(object):
       self._q_argmax = tf.argmax(self._q + self.legal_actions_ph, axis=1)[0]
 
     # Set up a session and initialize variables.
-    self._sess = tf.Session(
-        '', config=tf.ConfigProto(allow_soft_placement=True))
-    self._init_op = tf.global_variables_initializer()
+    self._sess = tf.compat.v1.Session(
+        '', config=tf.compat.v1.ConfigProto(allow_soft_placement=True))
+    self._init_op = tf.compat.v1.global_variables_initializer()
     self._sess.run(self._init_op)
 
-    self._saver = tf.train.Saver(max_to_keep=3)
+    self._saver = tf.compat.v1.train.Saver(max_to_keep=3)
 
     # This keeps tracks of the observed transitions during play, for each
     # player.
@@ -272,10 +272,10 @@ class DQNAgent(object):
     """
     # Get trainable variables from online and target networks.
     sync_qt_ops = []
-    trainables_online = tf.get_collection(
-        tf.GraphKeys.TRAINABLE_VARIABLES, scope='Online')
-    trainables_target = tf.get_collection(
-        tf.GraphKeys.TRAINABLE_VARIABLES, scope='Target')
+    trainables_online = tf.compat.v1.get_collection(
+        tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='Online')
+    trainables_target = tf.compat.v1.get_collection(
+        tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='Target')
     for (w_online, w_target) in zip(trainables_online, trainables_target):
       # Assign weights from online to target network.
       sync_qt_ops.append(w_target.assign(w_online, use_locking=True))
@@ -429,6 +429,8 @@ class DQNAgent(object):
     """
     if self.eval_mode:
       return
+    # print('not in eval mode. attempting to run training op...')
+    # print('self._replay.memory.add_count: {}, self.min_replay_history: {}'.format(self._replay.memory.add_count, self.min_replay_history))
 
     # Run a training op.
     if (self._replay.memory.add_count >= self.min_replay_history and
@@ -437,7 +439,11 @@ class DQNAgent(object):
       self.batch_staged = True
     if (self._replay.memory.add_count > self.min_replay_history and
         self.training_steps % self.update_period == 0):
-      self._sess.run([self._train_op, self._replay.prefetch_batch])
+      # print('running training')
+      result = self._sess.run([self._train_op, self._replay.prefetch_batch])
+      # print('actions: ', self._replay.actions)
+      # print('replay: ', self._replay)
+      # print('result: ', result)
     # Sync weights.
     if self.training_steps % self.target_update_period == 0:
       self._sess.run(self._sync_qt_ops)
@@ -467,6 +473,7 @@ class DQNAgent(object):
               self._replay.add_terminal_ph: is_terminal,
               self._replay.add_legal_actions_ph: legal_actions
           })
+      # print('added transition', observation, action, reward, is_terminal, legal_actions)
 
   def bundle_and_checkpoint(self, checkpoint_dir, iteration_number):
     """Returns a self-contained bundle of the agent's state.
@@ -483,7 +490,7 @@ class DQNAgent(object):
       A dictionary containing all of the agent's non-TensorFlow objects.
         If the checkpoint directory does not exist, will return None.
     """
-    if not tf.gfile.Exists(checkpoint_dir):
+    if not tf.io.gfile.exists(checkpoint_dir):
       return None
     self._saver.save(
         self._sess,

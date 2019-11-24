@@ -249,7 +249,7 @@ class WrappedPrioritizedReplayMemory(replay_memory.WrappedReplayMemory):
        A TF op setting the priorities according to Prioritized Experience
        Replay.
     """
-    return tf.py_func(
+    return tf.numpy_function(
         self.memory.set_priority, [indices, losses],
         [],
         name='prioritized_replay_set_priority_py_func')
@@ -263,7 +263,7 @@ class WrappedPrioritizedReplayMemory(replay_memory.WrappedReplayMemory):
     Returns:
        A tensor (float32) of priorities.
     """
-    return tf.py_func(
+    return tf.numpy_function(
         self.memory.get_priority, [indices],
         [tf.float32],
-        name='prioritized_replay_get_priority_py_func')
+          name='prioritized_replay_get_priority_py_func')
