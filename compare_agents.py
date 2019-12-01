@@ -118,6 +118,34 @@ class Runner(object):
       for j in range(j_end):
         print('running agent {} with agent {}'.format(i, j), flush=True)
         memory()
+
+        observer = agent_instances[j][0]
+        observer.reset_observations()
+        # show demonstration games
+        for episode in range(10):
+          observations = self.environment.reset()
+          observer.start_observe_episode()
+          agents = agent_instances[j]
+          for agent in agents:
+            agent.reset(self.agent_config)
+          done = False
+
+          while not done:
+            for agent_id, agent in enumerate(agents):
+              observation = observations['player_observations'][agent_id]
+              action = agent.act(observation)
+              if observation['current_player'] == agent_id:
+                assert action is not None
+                current_player_action = action
+                observer.observe(agent_id, observation, action)
+              else:
+                assert action is None
+              # Make an environment step.
+              observations, reward, done, unused_info = self.environment.step(
+                  current_player_action)
+              if done:
+                break
+          observer.end_observe_episode()
         
         pair_rewards = []
         for episode in range(flags['num_episodes']):

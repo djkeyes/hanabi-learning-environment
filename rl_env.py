@@ -703,3 +703,19 @@ class Agent(object):
             }
     """
     raise NotImplementedError("Not implemented in Abstract Base class")
+
+  def reset_observations(self):
+    # default: noop
+    pass
+
+  def start_observe_episode(self):
+    # default: noop
+    pass
+
+  def observe(self, agent_id, observation, action):
+    # default: noop
+    pass
+
+  def end_observe_episode(self):
+    # default: noop
+    pass
